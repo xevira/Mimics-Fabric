@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "mimics:block/mimic_chest"
+    }
+  }
+}
