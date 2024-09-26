@@ -5,6 +5,7 @@ import net.fabricmc.api.ModInitializer;
 
 import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
+import net.minecraft.block.Blocks;
 import net.minecraft.item.ItemGroups;
 import net.minecraft.registry.Registries;
 import net.minecraft.util.Identifier;
@@ -22,10 +23,10 @@ public class Mimics implements ModInitializer {
 		Registration.load();
 		FabricDefaultAttributeRegistry.register(Registration.MIMIC_ENTITY, MimicEntity.createMimicAttributes());
 
-		// Have to use setblock for now
-		//ItemGroupEvents.modifyEntriesEvent(ItemGroups.SPAWN_EGGS).register(entries -> {
-		//	entries.add(Registration.MIMIC_CHEST);
-		//});
+		ItemGroupEvents.modifyEntriesEvent(ItemGroups.SPAWN_EGGS).register(entries -> {
+			entries.addAfter(Blocks.TRIAL_SPAWNER, Registration.FAKE_SPAWNER);
+			entries.addAfter(Blocks.TRIAL_SPAWNER, Registration.MIMIC_CHEST);
+		});
 	}
 
 	public static Identifier id(String name)

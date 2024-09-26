@@ -8,6 +8,7 @@ import github.xevira.mimics.util.MimicDamage;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.enchantment.EnchantmentHelper;
+import net.minecraft.entity.AnimationState;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
@@ -17,13 +18,21 @@ import net.minecraft.entity.ai.pathing.PathNodeType;
 import net.minecraft.entity.attribute.DefaultAttributeContainer;
 import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.damage.DamageSource;
+import net.minecraft.entity.data.DataTracker;
+import net.minecraft.entity.data.TrackedData;
+import net.minecraft.entity.data.TrackedDataHandlerRegistry;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.mob.HostileEntity;
+import net.minecraft.entity.mob.SkeletonEntity;
 import net.minecraft.entity.mob.SlimeEntity;
+import net.minecraft.entity.mob.ZombieEntity;
 import net.minecraft.entity.passive.Cracks;
 import net.minecraft.entity.passive.IronGolemEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.AxeItem;
+import net.minecraft.item.ItemStack;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
@@ -34,6 +43,15 @@ import net.minecraft.world.World;
 import java.util.EnumSet;
 
 public class MimicEntity extends HostileEntity {
+    private static final TrackedData<Boolean> RAVENOUS = DataTracker.registerData(MimicEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
+
+
+    public final AnimationState jumpAnimationState = new AnimationState();
+    private int jumpAnimationTimeout = 0;
+
+    public final AnimationState attackingAnimationState = new AnimationState();
+    private int attackingAnimationTimeout = 0;
+
     public MimicEntity(EntityType<? extends MimicEntity> entityType, World world) {
         super(entityType, world);
         this.setPathfindingPenalty(PathNodeType.WATER, 0.0F);
@@ -46,21 +64,37 @@ public class MimicEntity extends HostileEntity {
 
     public static DefaultAttributeContainer.Builder createMimicAttributes() {
         return HostileEntity.createMobAttributes()
-                .add(EntityAttributes.GENERIC_MAX_HEALTH, 26)
+                .add(EntityAttributes.GENERIC_MAX_HEALTH, 50)
                 .add(EntityAttributes.GENERIC_MOVEMENT_SPEED, 0.2f)
                 .add(EntityAttributes.GENERIC_ARMOR, 0.5f)
-                .add(EntityAttributes.GENERIC_ATTACK_DAMAGE, 2);
+                .add(EntityAttributes.GENERIC_ATTACK_DAMAGE, 5);
     }
+
+    @Override
+    protected void initDataTracker(DataTracker.Builder builder) {
+        super.initDataTracker(builder);
+        builder.add(RAVENOUS, false);
+    }
+
+    public boolean isRavenous() {
+        return this.getDataTracker().get(RAVENOUS);
+    }
+
+    public void setRavenous(boolean converting) {
+        this.dataTracker.set(RAVENOUS, converting);
+    }
+
 
     @Override
     protected void initGoals() {
         // Normal goals
         // They should not swim
         // TODO: Add a fleeing goal that checks for someone wielding an axe?
-        this.goalSelector.add(1, new MimicEntity.RevertToMimicChestGoal(this));
+        this.goalSelector.add(1, new MimicEntity.FaceTowardTargetGoal(this));
+        this.goalSelector.add(2, new MimicEntity.MimicAttackGoal(this, 1.0f, false));
         this.goalSelector.add(3, new MimicEntity.RandomLookGoal(this));
-        this.goalSelector.add(2, new MimicEntity.FaceTowardTargetGoal(this));
         this.goalSelector.add(5, new MimicEntity.MoveGoal(this));
+        this.goalSelector.add(10, new MimicEntity.RevertToMimicChestGoal(this));
 
         // Target Selection
         this.targetSelector.add(1, new RevengeGoal(this));
@@ -73,11 +107,47 @@ public class MimicEntity extends HostileEntity {
         if (this.isAlive() && this.isInAttackRange(target) && this.canSee(target)) {
             DamageSource damageSource = this.getDamageSources().mobAttack(this);
             if (target.damage(damageSource, this.getDamageAmount())) {
-                this.playSound(SoundEvents.ENTITY_SLIME_ATTACK, 1.0F, (this.random.nextFloat() - this.random.nextFloat()) * 0.2F + 1.0F);
+                this.playSound(Registration.MIMIC_BITING, 1.0F, (this.random.nextFloat() - this.random.nextFloat()) * 0.2F + 1.0F);
                 if (this.getWorld() instanceof ServerWorld serverWorld) {
                     EnchantmentHelper.onTargetDamaged(serverWorld, target, damageSource);
                 }
             }
+        }
+    }
+
+    private void updateAnimations()
+    {
+        if (this.isRavenous() && attackingAnimationTimeout <= 0)
+        {
+            attackingAnimationTimeout = 40;
+            attackingAnimationState.start(this.age);
+        }
+        else
+            --this.attackingAnimationTimeout;
+
+        if (!this.isRavenous())
+            attackingAnimationState.stop();
+
+        if (this.jumping && jumpAnimationTimeout <= 0)
+        {
+            jumpAnimationTimeout = 40;
+            jumpAnimationState.start(this.age);
+        }
+        else
+            --jumpAnimationTimeout;
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+
+        if (this.getWorld().isClient)
+        {
+            updateAnimations();
+        }
+        else
+        {
+            this.setRavenous(this.getTarget() != null);
         }
     }
 
@@ -118,8 +188,6 @@ public class MimicEntity extends HostileEntity {
     public MimicDamage.DamageLevel getDamageLevel() {
         return MimicDamage.MIMIC.getMimicDamageLevel(this.getHealth() / this.getMaxHealth());
     }
-
-    // Sounds
 
     static class FaceTowardTargetGoal extends Goal {
         private final MimicEntity mimic;
@@ -207,7 +275,10 @@ public class MimicEntity extends HostileEntity {
             } else {
                 this.state = MoveControl.State.WAIT;
                 if (this.entity.isOnGround()) {
-                    this.entity.setMovementSpeed((float)(this.speed * this.entity.getAttributeValue(EntityAttributes.GENERIC_MOVEMENT_SPEED)));
+                    if (this.mimic.isRavenous())
+                        this.entity.setMovementSpeed((float) (4.0f * this.speed * this.entity.getAttributeValue(EntityAttributes.GENERIC_MOVEMENT_SPEED)));
+                    else
+                        this.entity.setMovementSpeed((float) (this.speed * this.entity.getAttributeValue(EntityAttributes.GENERIC_MOVEMENT_SPEED)));
                     if (this.ticksUntilJump-- <= 0) {
                         this.ticksUntilJump = this.mimic.getTicksUntilNextJump();
                         if (this.jumpOften) {
@@ -215,11 +286,7 @@ public class MimicEntity extends HostileEntity {
                         }
 
                         this.mimic.getJumpControl().setActive();
-                        //  TODO: Jumping Sound
-                        //if (this.slime.makesJumpSound()) {
-                        //    this.slime.playSound(this.slime.getJumpSound(), this.slime.getSoundVolume(), this.slime.getJumpSoundPitch());
-                        //}
-                        //
+                        this.mimic.playSound(Registration.MIMIC_LANDING, 0.5F, 0.9F + this.mimic.random.nextFloat() * 0.2F);
                     } else {
                         this.mimic.sidewaysSpeed = 0.0F;
                         this.mimic.forwardSpeed = 0.0F;
@@ -266,6 +333,7 @@ public class MimicEntity extends HostileEntity {
         public void start() {
             super.start();
             this.ticks = 0;
+            Mimics.LOGGER.info("MimicAttackGoal.start - called");
         }
 
         @Override
@@ -306,13 +374,18 @@ public class MimicEntity extends HostileEntity {
             if (this.timeSinceLastAttack < 1 ||         // Hasn't started this yet at all.
                     !this.mimic.isAlive() ||            // Is dead
                     !mimic.canMoveVoluntarily() ||      // Can't move on it's own
-                    mimic.isAttacking())                // Is currently trying to attack something.
+                    mimic.isRavenous())                 // Is currently trying to attack something.
             {
                 this.timeSinceLastAttack = l;
                 return false;
             }
 
             return (l - this.timeSinceLastAttack) >= DELAY_UNTIL_REVERT;
+        }
+
+        @Override
+        public boolean shouldContinue() {
+            return mimic.isAlive() && mimic.canMoveVoluntarily() && !mimic.isRavenous();
         }
 
         @Override

@@ -1,6 +1,8 @@
 package github.xevira.mimics.model;
 
 import github.xevira.mimics.Mimics;
+import github.xevira.mimics.animation.ModAnimations;
+import github.xevira.mimics.entity.mob.MimicEntity;
 import net.minecraft.client.model.*;
 import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.entity.model.EntityModelLayer;
@@ -31,8 +33,9 @@ public class MimicEntityModel<T extends Entity> extends SinglePartEntityModel<T>
         ModelPartData body = modelPartData.addChild("body", ModelPartBuilder.create().uv(0, 19).cuboid(-7.0F, -10.0F, -7.0F, 14.0F, 10.0F, 14.0F, new Dilation(0.0F)), ModelTransform.pivot(0.0F, 24.0F, 0.0F));
 
         ModelPartData top = body.addChild("top", ModelPartBuilder.create().uv(0, 0).cuboid(-7.0F, -4.0F, -14.0F, 14.0F, 5.0F, 14.0F, new Dilation(0.0F))
-                .uv(0, 0).cuboid(-1.0F, -1.0F, -15.0F, 2.0F, 4.0F, 1.0F, new Dilation(0.0F)), ModelTransform.pivot(0.0F, -10.0F, 7.0F));
-
+                .uv(0, 0).cuboid(-1.0F, -1.0F, -15.0F, 2.0F, 4.0F, 1.0F, new Dilation(0.0F))
+                .uv(0, 0).cuboid(3.0F, 0.0F, -12.0F, 2.0F, 4.0F, 1.0F, new Dilation(0.0F))
+                .uv(0, 0).cuboid(-5.0F, 0.0F, -12.0F, 2.0F, 4.0F, 1.0F, new Dilation(0.0F)), ModelTransform.pivot(0.0F, -10.0F, 7.0F));
 
         return TexturedModelData.of(modelData, 64, 64);
     }
@@ -45,8 +48,11 @@ public class MimicEntityModel<T extends Entity> extends SinglePartEntityModel<T>
 
     @Override
     public void setAngles(T entity, float limbAngle, float limbDistance, float animationProgress, float headYaw, float headPitch) {
-        // ??
-        this.body.yaw = headYaw * (float) (Math.PI / 180.0);
-        this.body.pitch = headPitch * (float) (Math.PI / 180.0);
+        this.getPart().traverse().forEach(ModelPart::resetTransform);
+
+        MimicEntity mimic = (MimicEntity)entity;
+
+        this.updateAnimation(mimic.jumpAnimationState, ModAnimations.MIMIC_JUMP, animationProgress, 1f);
+        this.updateAnimation(mimic.attackingAnimationState, ModAnimations.MIMIC_ATTACKING, animationProgress, 1f);
     }
 }

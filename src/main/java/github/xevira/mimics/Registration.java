@@ -23,6 +23,8 @@ import net.minecraft.item.Item;
 import net.minecraft.registry.*;
 import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.sound.BlockSoundGroup;
+import net.minecraft.sound.SoundEvent;
+import net.minecraft.util.Identifier;
 import net.minecraft.world.gen.GenerationStep;
 import net.minecraft.world.gen.YOffset;
 import net.minecraft.world.gen.feature.*;
@@ -76,6 +78,10 @@ public class Registration {
     public static final RegistryKey<PlacedFeature> MIMIC_ROOM_PLACED_FEATURE = registerPlacedFeature("mimic_room");
     public static final RegistryKey<PlacedFeature> MIMIC_ROOM_DEEP_PLACED_FEATURE = registerPlacedFeature("mimic_room_deep");
 
+    // SoundEvents
+    public static final SoundEvent MIMIC_LANDING = registerSoundEvent("mimic_landing");
+    public static final SoundEvent MIMIC_BITING = registerSoundEvent("mimic_biting");
+
 
     // Register functions
     public static <T extends Block> T registerBlock(String name, T block)
@@ -122,6 +128,12 @@ public class Registration {
                                                                                    F feature,
                                                                                    FC featureConfig) {
         context.register(key, new ConfiguredFeature<>(feature, featureConfig));
+    }
+
+    private static SoundEvent registerSoundEvent(String name)
+    {
+        Identifier id = Mimics.id(name);
+        return Registry.register(Registries.SOUND_EVENT, id, SoundEvent.of(id));
     }
 
     public static void bootstrapConfiguredFeatures(Registerable<ConfiguredFeature<?, ?>> context) {

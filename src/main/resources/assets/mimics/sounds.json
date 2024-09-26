@@ -1,0 +1,16 @@
+{
+  "mimic_landing": {
+    "subtitle": "sound.mimics.mimic_landing",
+    "sounds": [
+      "mimics:mimic_landing1",
+      "mimics:mimic_landing2"
+    ]
+  },
+  "mimic_biting": {
+    "subtitle": "sound.mimics.mimic_bite",
+    "sounds": [
+      "mimics:mimic_bite1",
+      "mimics:mimic_bite22"
+    ]
+  }
+}
